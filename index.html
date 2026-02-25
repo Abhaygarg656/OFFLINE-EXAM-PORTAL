@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline exam portal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-cyan: #00f2ff;
+            --accent-red: #ff4d4d;
+            --dark-bg: #0f172a;
+            --card-bg: #1e293b;
+            --text-white: #f8fafc;
+        }
+
+        body {
+            user-select: none; 
+            -webkit-user-select: none;
+            font-family: 'Segoe UI', sans-serif;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            color: var(--text-white);
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar {
+            background: rgba(15, 23, 42, 0.9);
+            padding: 15px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--primary-cyan);
+            box-shadow: 0 4px 20px rgba(0, 242, 255, 0.2);
+        }
+
+        .logo { font-size: 1.8rem; font-weight: 900; color: var(--primary-cyan); letter-spacing: 2px; display: flex; align-items: center; gap: 10px; }
+        .live-tag { background: var(--accent-red); padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; animation: pulse 1.5s infinite; }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .container { flex: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        
+        .glass-card {
+            background: var(--card-bg);
+            width: 100%;
+            max-width: 500px;
+            padding: 40px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        .quiz-mode { max-width: 800px; text-align: left; }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            margin: 10px 0;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        .btn-primary {
+            padding: 12px 30px;
+            background: linear-gradient(90deg, #ff4d4d, #f43f5e);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: 0.3s;
+        }
+
+        .btn-secondary {
+            padding: 12px 30px;
+            background: #334155;
+            color: white;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: 0.3s;
+        }
+
+        .btn-primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(244, 63, 94, 0.4); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .option {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #334155;
+            padding: 15px;
+            margin-bottom: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .option:hover { background: rgba(0, 242, 255, 0.1); border-color: var(--primary-cyan); }
+        .option.selected { background: var(--primary-cyan); color: #0f172a; font-weight: bold; }
+
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px;
+        }
+
+        #cert-template { display: none; width: 800px; padding: 50px; background: white; border: 15px solid #217346; text-align: center; color: #333; position: absolute; left: -9999px; }
+    </style>
+</head>
+<body oncontextmenu="return false;"> 
+
+<nav class="navbar">
+    <div class="logo"><i class="fas fa-desktop"></i> OFFLINE EXAM PORTAL</div>
+    <div class="live-tag">● LIVE EXAM</div>
+</nav>
+
+<div class="container">
+    <div id="login-screen" class="glass-card">
+        <h2 style="color: var(--primary-cyan);">Student Login</h2>
+        <p style="color: #94a3b8; font-size: 0.9rem;">Enter your name to start</p>
+        <input type="text" id="login-user" placeholder="Enter Student Name" autocomplete="off">
+        <input type="password" id="login-pass" placeholder="Enter Password">
+        <button class="btn-primary" style="width: 100%;" onclick="validateLogin()">Login to Exam</button>
+        <p id="login-error" style="color: var(--accent-red); font-size: 0.8rem; margin-top: 10px; display: none;">Invalid Username or Password!</p>
+    </div>
+
+    <div id="exam-screen" class="glass-card quiz-mode" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div id="q-count" style="color: var(--primary-cyan); font-weight: bold;">Question 1/50</div>
+            <div style="color: var(--accent-red); font-size: 1.5rem; font-weight: bold;" id="time-left">45:00</div>
+        </div>
+        <div style="height: 6px; background: #334155; border-radius: 10px; margin: 20px 0; overflow: hidden;">
+            <div id="progress-fill" style="height: 100%; background: var(--primary-cyan); width: 0%; transition: 0.5s;"></div>
+        </div>
+        
+        <h3 id="q-text" style="min-height: 60px; line-height: 1.4;"></h3>
+        <div id="options-box"></div>
+
+        <div class="controls">
+            <button id="prev-btn" class="btn-secondary" onclick="prevQuestion()">Previous</button>
+            <button id="next-btn" class="btn-primary" onclick="nextQuestion()">Save & Next</button>
+        </div>
+    </div>
+
+    <div id="result-screen" class="glass-card" style="display: none;">
+        <h1 style="color: var(--primary-cyan);">Exam Finished</h1>
+        <p>Student: <strong id="res-name" style="color: white;"></strong></p>
+        <div style="font-size: 4rem; font-weight: 900; margin: 20px 0;" id="final-score">0/50</div>
+        <button class="btn-primary" style="width: 100%;" onclick="downloadCert()">Download Certificate 📜</button>
+    </div>
+</div>
+
+<div id="cert-template">
+    <div style="border: 5px double #d4af37; padding: 40px;">
+        <h1 style="font-size: 45px; color: #217346; margin: 0;">OFFLINE EXAM PORTAL</h1>
+        <p style="letter-spacing: 3px; font-weight: bold;">CERTIFICATE OF COMPLETION</p>
+        <hr style="width: 50%; border: 1px solid #d4af37;">
+        <p style="margin-top: 30px;">This is to certify that</p>
+        <h2 id="cert-user-name" style="font-size: 35px; text-decoration: underline;"></h2>
+        <p>has successfully passed the Web Designing examination</p>
+        <p style="font-size: 1.2rem;">Final Score: <strong id="cert-final-score"></strong></p>
+        <div style="margin-top: 60px; display: flex; justify-content: space-around;">
+            <div>_________________<br>Director Signature</div>
+            <div>_________________<br>Date: 2026-02-24</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const questions = [
+        {q:"An HTML document can contain _____", a:["Attributes","Tags","Raw text","All the answers are true"], c:3},
+        {q:"Which CSS property specifies the right margin?", a:["margin-right","margin-bottom","margin-top","margin-left"], c:0},
+        {q:"Which anchor pseudo-class is used on hover?", a:[":link",":visited",":hover",":active"], c:2},
+        {q:"Which tag defines internal style sheet?", a:["<script>","<link>","<class>","<style>"], c:3},
+        {q:"Which shorthand defines top border?", a:["border-up","border-top","border-style","None"], c:1},
+        {q:"Which property sets vertical position from bottom?", a:["border","bottom","position","None"], c:1},
+        {q:"Which property controls text flow?", a:["white-space","text-shadow","text-decoration","text-transform"], c:0},
+        {q:"Which property defines transparency?", a:["alpha","opacity","opac","None"], c:1},
+        {q:"Space between words?", a:["color","direction","letter-spacing","word-spacing"], c:3},
+        {q:"CSS property for bold text?", a:["text-decoration:bold","font-weight:bold","font-style:bold","text-align:bold"], c:1},
+        {q:"CSS property for italic text?", a:["style","font","font-style","@font-face"], c:2},
+        {q:"Property for border type?", a:["border-color","border-style","border-width","border-bottom-color"], c:1},
+        {q:"Correct external CSS syntax?", a:["<link rel='stylesheet' href='style.css' />","<link rel='stylesheet' src='style.css' />","<style src='style.css' />","<style link='style.css' />"], c:0},
+        {q:"Property for small caps?", a:["font-size","font-variant","font-style","font-weight"], c:1},
+        {q:"Lighter font weight?", a:["unfocus","normal","lighter","bolder"], c:2},
+        {q:"Property for uppercase/lowercase?", a:["text-transform","text","text-decoration","text-uppercase"], c:0},
+        {q:"font-variant normal means?", a:["bold","small-caps","normal","None"], c:2},
+        {q:"Alignment of last line?", a:["overflow-wrap","text-align-last","text-transform","text-indent"], c:1},
+        {q:"Left padding property?", a:["padding","Left-padding","padding-left","margin-left"], c:2},
+        {q:"Software to render HTML?", a:["server","compiler","interpreter","browser"], c:3},
+        {q:"Upload HTML file?", a:["HTTP","SMTP","SIP","FTP"], c:3},
+        {q:"CSS rule component?", a:["Selector","Property","Value","All"], c:3},
+        {q:"Capitalize text property?", a:["text-indent","text-align","text-decoration","text-transform"], c:3},
+        {q:"Not HTML5 element?", a:["article","audio","nav","frameset"], c:3},
+        {q:"Background image scale large?", a:["cover","contain","resize","fixed"], c:0},
+        {q:"Header element?", a:["data-x","header","mark","meter"], c:1},
+        {q:"Blog post element?", a:["section","class","article","None"], c:2},
+        {q:"HTML5 header section?", a:["header","footer","section","None"], c:0},
+        {q:"Unvisited links?", a:["link","visited","hover","active"], c:0},
+        {q:"Highlight text?", a:["em","strong","mark","None"], c:2},
+        {q:"Navigation menu tag?", a:["ul","li","Both","nav"], c:3},
+        {q:"Background media loading?", a:["poster","autobuffer","buffer","data-x"], c:1},
+        {q:"What is CSS?", a:["Style sheet language","Separate content","Style HTML","All"], c:3},
+        {q:"Apply CSS?", a:["External","Inline","Head","All"], c:3},
+        {q:"Not box model property?", a:["margin","color","width","height"], c:1},
+        {q:"Underline property?", a:["text-decoration","text-style","text-decoration-line","text-line"], c:0},
+        {q:"Controls positioning?", a:["static","position","fix","set"], c:1},
+        {q:"Table borders property?", a:["table:border","table","border","none"], c:2},
+        {q:"Space between table cells?", a:["border-spacing","border-style","border","none"], c:0},
+        {q:"What is the file extension of JavaScript?", a:[".java",".js",".javascript",".script"], c:1},
+        {q:"Which keyword is used to declare a variable in JavaScript?", a:["var","let","const","All of the above"], c:3},
+        {q:"Which function is used to show an alert box in JS?", a:["msg()","alert()","display()","popup()"], c:1},
+        {q:"Inside which HTML element do we put the JavaScript?", a:["<js>","<scripting>","<script>","<javascript>"], c:2},
+        {q:"Which language is known as both Client and Server side?", a:["HTML","CSS","JavaScript","Python"], c:2},
+        {q:"Which box is used to take input from the user in JS?", a:["confirm()","prompt()","alert()","input()"], c:1},
+        {q:"HTML metadata stored in?", a:["head","title","html","body"], c:0},
+        {q:"YouTube videos tag?", a:["<samp>","<small>","<frame>","<iframe>"], c:3},
+        {q:"Insert image tag?", a:["<img url>","<img alt>","<img src>","<img link>"], c:2},
+        {q:"Open link new tab?", a:["src='_blank'","alt='_blank'","target='_self'","target='_blank'"], c:3},
+        {q:"Dropdown tag?", a:["<input>","<select>","<text>","<textarea>"], c:1}
+    ];
+
+    let currentIdx = 0, totalSeconds = 45 * 60, studentName = "";
+    let userAnswers = new Array(50).fill(null);
+    let timerInterval;
+
+    function validateLogin() {
+        const user = document.getElementById('login-user').value.trim();
+        const pass = document.getElementById('login-pass').value.trim();
+        if(user !== "" && pass === user + "@123") {
+            studentName = user;
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('exam-screen').style.display = 'block';
+            loadQuestion(); startTimer();
+        } else { document.getElementById('login-error').style.display = 'block'; }
+    }
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            let mins = Math.floor(totalSeconds / 60);
+            let secs = totalSeconds % 60;
+            document.getElementById('time-left').innerText = `${mins}:${secs < 10 ? '0'+secs : secs}`;
+            if(totalSeconds <= 0) {
+                clearInterval(timerInterval);
+                finishExam();
+            }
+            totalSeconds--;
+        }, 1000);
+    }
+
+    function loadQuestion() {
+        const q = questions[currentIdx];
+        document.getElementById('q-count').innerText = `Question ${currentIdx + 1}/50`;
+        document.getElementById('q-text').innerText = q.q;
+        document.getElementById('progress-fill').style.width = (((currentIdx + 1)/50)*100) + "%";
+        document.getElementById('prev-btn').style.visibility = currentIdx === 0 ? "hidden" : "visible";
+        document.getElementById('next-btn').innerText = currentIdx === 49 ? "Finish Exam" : "Save & Next";
+        
+        const box = document.getElementById('options-box');
+        box.innerHTML = '';
+        q.a.forEach((opt, idx) => {
+            const div = document.createElement('div');
+            div.className = 'option' + (userAnswers[currentIdx] === idx ? ' selected' : '');
+            div.innerText = opt;
+            div.onclick = () => {
+                userAnswers[currentIdx] = idx;
+                loadQuestion();
+            };
+            box.appendChild(div);
+        });
+        document.getElementById('next-btn').disabled = userAnswers[currentIdx] === null;
+    }
+
+    function nextQuestion() {
+        if(currentIdx < 49) { 
+            currentIdx++; 
+            loadQuestion(); 
+        } else { 
+            if(confirm("Confirm: Are you sure you want to submit your exam?")) {
+                finishExam(); 
+            }
+        }
+    }
+
+    function prevQuestion() {
+        if(currentIdx > 0) { 
+            currentIdx--; 
+            loadQuestion(); 
+        }
+    }
+
+    function finishExam() {
+        clearInterval(timerInterval);
+        let score = 0;
+        userAnswers.forEach((ans, i) => { 
+            if(ans === questions[i].c) score++; 
+        });
+        document.getElementById('exam-screen').style.display = 'none';
+        document.getElementById('result-screen').style.display = 'block';
+        document.getElementById('res-name').innerText = studentName;
+        document.getElementById('final-score').innerText = `${score}/50`;
+    }
+
+    async function downloadCert() {
+        let finalScore = document.getElementById('final-score').innerText;
+        document.getElementById('cert-user-name').innerText = studentName.toUpperCase();
+        document.getElementById('cert-final-score').innerText = finalScore;
+        const cert = document.getElementById('cert-template');
+        cert.style.display = 'block';
+        const canvas = await html2canvas(cert);
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('l', 'mm', 'a4');
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, 280, 190);
+        pdf.save(`${studentName}_Certificate.pdf`);
+        cert.style.display = 'none';
+    }
+</script>
+</body>
+</html>
